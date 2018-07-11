@@ -859,7 +859,7 @@ module_exit(pcc_unregister);
 
 MODULE_AUTHOR("Tomer Gilad <tomer.gilad1@mail.huji.ac.il>");
 MODULE_AUTHOR("Nathan Jay <njay2@illinois.edu>");
-MODULE_AUTHOR("Nogah Frenkel <nogah.frenkel@gmail.com>");
+MODULE_AUTHOR("Nogah Frankel <nogah.frankel@gmail.com>");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("TCP PCC (Performance-oriented Congestion Control)");
 
