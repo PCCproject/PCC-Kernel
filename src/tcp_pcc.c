@@ -91,7 +91,7 @@ struct pcc_data {
 
 	// debug helpers
 	int id;
-	int decisions_count;
+	int intervals_count;
 
 	u32 segs_sent;
 	u32 packets_counted;
@@ -310,7 +310,6 @@ static u64 pcc_decide_rate(struct pcc_data *pcc)
 				   pcc->intervals[1].rate;
 	else
 		return pcc->rate;
-
 }
 
 static void pcc_decide(struct pcc_data *pcc, struct tcp_sock *tsk)
@@ -327,10 +326,10 @@ static void pcc_decide(struct pcc_data *pcc, struct tcp_sock *tsk)
 	if (new_rate != pcc->rate)
 		printk(KERN_INFO "%d decide: on new rate %d %lld (%d) %d\n",
 		       pcc->id, pcc->rate < new_rate, new_rate,
-		       pcc->decisions_count, pcc_get_rtt(tsk));
+		       pcc->intervals_count, pcc_get_rtt(tsk));
 	else
 		printk(KERN_INFO "%d decide: stay %lld (%d) %d\n", pcc->id,
-			pcc->rate, pcc->decisions_count, pcc_get_rtt(tsk));
+			pcc->rate, pcc->intervals_count, pcc_get_rtt(tsk));
 
 	if (pcc->mode == PCC_RATE_ADJUSMENT) {
 		pcc->last_rate = new_rate;
@@ -342,20 +341,20 @@ static void pcc_decide(struct pcc_data *pcc, struct tcp_sock *tsk)
 		else
 			pcc->rate += new_rate;
 	}
-	pcc->decisions_count+=4;
+	pcc->intervals_count += pcc_intervals;
 }
 
 
 static void pcc_decide_rate_adjusment(struct pcc_data *pcc)
 {
-	struct pcc_interval *interval = &pcc->intervals[0];
+	struct pcc_interval *interval = pcc->single_interval;
 	s64 prev, extra_rate;
 
 	prev = interval->utility;
 	pcc_calc_utility(interval);
 
 	printk(KERN_INFO "%d: adj mode: rate %lld utility %lld (%d)\n",
-		pcc->id, interval->rate, interval->utility, pcc->decisions_count);
+		pcc->id, interval->rate, interval->utility, pcc->intervals_count);
 	if (prev < interval->utility) {
 		pcc_increase_epsilon(pcc);
 		extra_rate = (pcc->rate * pcc->epsilon) / pcc_epsilon_part;
@@ -370,7 +369,7 @@ static void pcc_decide_rate_adjusment(struct pcc_data *pcc)
 		pcc->mode = PCC_DECISION_MAKING;
 		printk(KERN_INFO "%d: adj mode ended\n", pcc->id);
 	}
-	pcc->decisions_count++;
+	pcc->intervals_count++;
 }
 
 static s64 pcc_adjust_utility(s64 utility, u32 rate, bool threshold)
@@ -567,15 +566,21 @@ static u32 pcc_ssthresh(struct sock *sk)
 static void pcc_set_state(struct sock *sk, u8 new_state)
 {
 	struct pcc_data *pcc = inet_csk_ca(sk);
+	struct tcp_sock *tsk = tcp_sk(sk);
 	s32 double_counted;
 
 	if (!pcc_valid(pcc))
 		return;
 
-	if (pcc->mode == PCC_LOSS && new_state != 4) {
-		double_counted = tcp_sk(sk)->delivered + tcp_sk(sk)->lost+
-			tcp_packets_in_flight(tcp_sk(sk));
-		double_counted -= tcp_sk(sk)->data_segs_out;
+	/* In Loss state, the counters of sent segs versus segs recived, lost
+	 * and in flight, stops being in sync. So at the end of the loss state,
+	 * pcc saves the diff between the counters in order to resulves these
+	 * diffs in the future
+	 */
+	if (pcc->mode == PCC_LOSS && new_state != TCP_CA_Loss) {
+		double_counted = tsk->delivered + tsk->lost+
+				 tcp_packets_in_flight(tsk);
+		double_counted -= tsk->data_segs_out;
 		double_counted -= pcc->double_counted;
 		pcc->double_counted+= double_counted;
 		printk(KERN_INFO "%d loss ended: double_counted %d\n",
@@ -584,7 +589,7 @@ static void pcc_set_state(struct sock *sk, u8 new_state)
 		pcc->mode = PCC_DECISION_MAKING;
 		pcc_setup_intervals(pcc);
 		pcc_start_interval(sk, pcc);
-	} else if (pcc->mode != PCC_LOSS && new_state  == 4) {
+	} else if (pcc->mode != PCC_LOSS && new_state  == TCP_CA_Loss) {
 		printk(KERN_INFO "%d loss: started\n", pcc->id);
 		pcc->mode = PCC_LOSS;
 		pcc->wait_mode = true;
