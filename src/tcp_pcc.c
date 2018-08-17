@@ -66,7 +66,7 @@ enum PCC_DECISION {
 };
 
 struct pcc_interval {
-	u32 rate;		/* sending rate of this interval, bytes/sec */
+	u64 rate;		/* sending rate of this interval, bytes/sec */
 	
 	s64 recv_start; /* timestamps for when interval was waiting for acks */
 	s64 recv_end;
@@ -168,7 +168,7 @@ bool pcc_valid(struct pcc_data *pcc)
  /* Set the target rates of all intervals and reset statistics. */
 static void pcc_setup_intervals_probing(struct pcc_data *pcc)
 {
-	u32 rate_low, rate_high;
+	u64 rate_low, rate_high;
 	char rand;
 	int i;
 
@@ -210,7 +210,7 @@ static void pcc_setup_intervals_moving(struct pcc_data *pcc)
 /* Set the pacing rate and cwnd base on the currently-sending interval */
 static void start_interval(struct sock *sk, struct pcc_data *pcc)
 {
-	u32 rate = pcc->rate;
+	u64 rate = pcc->rate;
 	struct pcc_interval *interval;
 
 	if (!pcc->wait) {
