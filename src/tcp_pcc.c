@@ -382,14 +382,14 @@ static u32 pcc_decide_rate(struct pcc_data *pcc)
 			(pcc->intervals[0].rate == pcc->intervals[2].rate));
 
 	if (did_agree) {
-		if (run_1_res) {
+		if (run_2_res) {
 			pcc->last_rate = pcc->intervals[2].rate;
 			pcc->intervals[0].utility = pcc->intervals[2].utility;
 		} else {
 			pcc->last_rate = pcc->intervals[3].rate;
 			pcc->intervals[0].utility = pcc->intervals[3].utility;
 		}
-		return run_1_res ? pcc->intervals[2].rate :
+		return run_2_res ? pcc->intervals[2].rate :
 				   pcc->intervals[3].rate;
 	} else {
 		return pcc->rate;
